@@ -5,3 +5,4 @@ langchain-text-splitters
 langchain-google-genai
 chromadb
 pypdf
+
