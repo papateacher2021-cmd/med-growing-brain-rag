@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+med_pdf_storage/
+/data/
+chroma_db_med/
+*.pdf
+.env
