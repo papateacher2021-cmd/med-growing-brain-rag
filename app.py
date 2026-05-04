@@ -24,7 +24,7 @@ st.markdown("### Marine Equipment Directive - Technical Knowledge Base")
 # --- 3. CONFIGURACIÓN ÚNICA DE EMBEDDINGS ---
 # Definimos esto fuera para no repetir código y asegurar consistencia
 embeddings = GoogleGenerativeAIEmbeddings(
-    model="text-embedding-004",  # Sin el prefijo models/ para evitar conflictos en v1
+    model="models/text-embedding-004",  # Sin el prefijo models/ para evitar conflictos en v1
     google_api_version="v1",
     task_type="retrieval_document"
 )
