@@ -39,11 +39,11 @@ with st.sidebar:
                 # Load and split
                 loader = PyPDFLoader(file_path)
                 data = loader.load()
-                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=300)
                 chunks = text_splitter.split_documents(data)
                 
                 # Update persistent vector store
-                embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+                embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
                 Chroma.from_documents(
                     documents=chunks, 
                     embedding=embeddings, 
@@ -65,7 +65,7 @@ if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
         qa_chain = RetrievalQA.from_chain_type(
             llm=llm, 
             chain_type="stuff", 
-            retriever=vector_db.as_retriever(search_kwargs={"k": 7})
+            retriever=vector_db.as_retriever(search_kwargs={"k": 12})
         )
         
         with st.spinner("Retrieving facts from persistent storage..."):
