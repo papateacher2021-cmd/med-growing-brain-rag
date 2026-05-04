@@ -43,7 +43,7 @@ with st.sidebar:
                 chunks = text_splitter.split_documents(data)
                 
                 # Update persistent vector store
-                embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+                embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004")
                 Chroma.from_documents(
                     documents=chunks, 
                     embedding=embeddings, 
@@ -55,7 +55,7 @@ with st.sidebar:
 # --- 4. CONSULTATION ENGINE ---
 # Check if the database has content
 if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+    embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004")
     vector_db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
     
     user_query = st.text_input("Enter your technical inquiry regarding MED:")
