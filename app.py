@@ -44,7 +44,8 @@ with st.sidebar:
                 
                 # Update persistent vector store
                 embeddings = GoogleGenerativeAIEmbeddings(
-		    model="models/text-embedding-004, 
+		    model="models/text-embedding-004",
+		    google_api_version="v1", 
 		    task_type="retrieval_document"
 		)
                 Chroma.from_documents(
@@ -60,6 +61,7 @@ with st.sidebar:
 if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
     embeddings = GoogleGenerativeAIEmbeddings(
 	model="models/text-embedding-004",
+	google_api_version="v1",
 	task_type="retrieval_document"
     )
     vector_db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
