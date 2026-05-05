@@ -66,6 +66,12 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
+# Solo para probar, pongo esto antes del bloque del LLM
+if os.getenv("GOOGLE_API_KEY"):
+    st.sidebar.success("🔑 API Key detectada")
+else:
+    st.sidebar.error("❌ API Key no encontrada en Environment Variables")
+
 # --- 5. CONSULTA CON STREAMING ---
 if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
     user_query = st.chat_input("🛟  Please, place your consultation on MED here:...🐧")
