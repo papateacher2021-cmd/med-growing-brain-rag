@@ -28,21 +28,23 @@ def get_embeddings():
 embeddings = get_embeddings()
 
 # --- 3. UI ---
-st.set_page_config(page_title="MED Growing Brain", page_icon="🧠", layout="wide")
-st.title("🧠 MED Growing Brain (Versión Streaming)")
+st.set_page_config(page_title="F. Broissin Marine Equipment Directive RAG", page_icon="🧠", layout="wide")
+st.title("🧠 Pancho's MED RAG (Versión Streaming)")
 
 # --- 4. GESTIÓN DE PDFS (SIDEBAR) ---
 with st.sidebar:
-    st.header("📥 Ingesta de Conocimiento")
-    uploaded_file = st.file_uploader("Cargar PDF de la Directiva", type="pdf")
+# --- NUEVA LÍNEA PARA LA IMAGEN ---
+    st.image("wheelmark_info.png", use_container_width=True) 
+    st.header("📥 Knowledge Ingestion")
+    uploaded_file = st.file_uploader("🐬 Loading MED-related document (.pdf) 🚢 ", type="pdf")
     
     if uploaded_file:
         file_path = os.path.join(PDF_VAULT, uploaded_file.name)
         with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         
-        if st.button("🔄 Procesar y Aprender"):
-            with st.spinner("Integrando conocimiento localmente..."):
+        if st.button("🔄 Process and Learn"):
+            with st.spinner("Integrating Knowledge in my CyberBrain...🧠 "):
                 try:
                     loader = PyPDFLoader(file_path)
                     data = loader.load()
@@ -59,14 +61,14 @@ with st.sidebar:
                         embedding=embeddings, 
                         persist_directory=DB_DIR
                     )
-                    st.success("✅ ¡Conocimiento integrado!")
+                    st.success("✅ ¡Conocimiento integrado! ⚓ ")
                     st.balloons()
                 except Exception as e:
                     st.error(f"Error: {e}")
 
 # --- 5. CONSULTA CON STREAMING ---
 if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
-    user_query = st.chat_input("Haz tu consulta técnica sobre MED:")
+    user_query = st.chat_input("🛟  Please, place your consultation on MED here:...🐧")
     
     if user_query:
         # Mostramos la pregunta del usuario
@@ -86,7 +88,8 @@ if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
 
             # Configuración de Gemini con Streaming y versión estable v1
             llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash", 
+                model="gemini-1.5-flash",
+		google_api_key=os.getenv("GOOGLE_API_KEY"), 
                 temperature=0.3,
                 streaming=True,
                 version="v1" 
@@ -119,4 +122,4 @@ if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
         except Exception as e:
             st.error(f"Error en consulta: {e}")
 else:
-    st.warning("El cerebro está vacío. Sube un PDF para comenzar.")
+    st.warning("My CyberBrain is empty. Please, upload a .PDF to start.")
