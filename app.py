@@ -86,7 +86,7 @@ if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
             vector_db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
             
             # Configuración de búsqueda (k=6 para más velocidad)
-            retriever = vector_db.as_retriever(search_kwargs={"k": 6})
+            retriever = vector_db.as_retriever(search_kwargs={"k": 12})
             docs = retriever.get_relevant_documents(user_query)
             
             # Construir el contexto a partir de los documentos encontrados
@@ -94,11 +94,12 @@ if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
 
             # Configuración de Gemini con Streaming y versión estable v1
             llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
+                model="gemini-2.5-flash",
 		google_api_key=os.getenv("GOOGLE_API_KEY"), 
-                temperature=0.3,
+                temperature=0.1,
                 streaming=True,
-                version="v1" 
+                version="v1",
+		convert_system_message_to_human=True 
             )
 
             # Prompt para guiar a la IA
