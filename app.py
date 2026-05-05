@@ -8,11 +8,10 @@ except ImportError:
 import streamlit as st
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_community.embeddings import HuggingFaceEmbeddings # <--- La solución
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.chains import RetrievalQA
 
 # --- 1. CONFIGURACIÓN DE RUTAS ---
 DB_DIR = "/data/chroma_db_med"
@@ -22,7 +21,6 @@ for folder in [DB_DIR, PDF_VAULT]:
     os.makedirs(folder, exist_ok=True)
 
 # --- 2. INICIALIZAR EMBEDDINGS (LOCALES) ---
-# Al usar HuggingFace, nos olvidamos de los errores de Google API en esta fase.
 @st.cache_resource
 def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
@@ -31,9 +29,9 @@ embeddings = get_embeddings()
 
 # --- 3. UI ---
 st.set_page_config(page_title="MED Growing Brain", page_icon="🧠", layout="wide")
-st.title("🧠 MED Growing Brain (Versión Estable)")
+st.title("🧠 MED Growing Brain (Versión Streaming)")
 
-# --- 4. GESTIÓN DE PDFS ---
+# --- 4. GESTIÓN DE PDFS (SIDEBAR) ---
 with st.sidebar:
     st.header("📥 Ingesta de Conocimiento")
     uploaded_file = st.file_uploader("Cargar PDF de la Directiva", type="pdf")
@@ -49,7 +47,6 @@ with st.sidebar:
                     loader = PyPDFLoader(file_path)
                     data = loader.load()
                     
-                    # Usamos tu configuración de segmentación que funcionó bien
                     text_splitter = RecursiveCharacterTextSplitter(
                         chunk_size=2000, 
                         chunk_overlap=300,
@@ -57,7 +54,6 @@ with st.sidebar:
                     )
                     chunks = text_splitter.split_documents(data)
                     
-                    # Añadir a la base de datos persistente
                     vector_db = Chroma.from_documents(
                         documents=chunks, 
                         embedding=embeddings, 
@@ -68,29 +64,58 @@ with st.sidebar:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-# --- 5. CONSULTA ---
+# --- 5. CONSULTA CON STREAMING ---
 if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
-    user_query = st.text_input("Haz tu consulta técnica sobre MED:")
+    user_query = st.chat_input("Haz tu consulta técnica sobre MED:")
     
     if user_query:
+        # Mostramos la pregunta del usuario
+        with st.chat_message("user"):
+            st.markdown(user_query)
+
         try:
+            # Conexión a la base de datos
             vector_db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
             
-            # Usamos Gemini para la parte de "razonamiento"
+            # Configuración de búsqueda (k=6 para más velocidad)
+            retriever = vector_db.as_retriever(search_kwargs={"k": 6})
+            docs = retriever.get_relevant_documents(user_query)
+            
+            # Construir el contexto a partir de los documentos encontrados
+            context_text = "\n\n".join([doc.page_content for doc in docs])
+
+            # Configuración de Gemini con Streaming y versión estable v1
             llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash", # Puedes probar 2.0-flash si prefieres
-                temperature=0.1
+                model="gemini-1.5-flash", 
+                temperature=0.3,
+                streaming=True,
+                version="v1" 
             )
+
+            # Prompt para guiar a la IA
+            prompt = f"""Responde detalladamente basándote en el contexto proporcionado. 
+            Si la respuesta no está en el contexto, di que no está disponible.
             
-            qa_chain = RetrievalQA.from_chain_type(
-                llm=llm, 
-                chain_type="stuff", 
-                retriever=vector_db.as_retriever(search_kwargs={"k": 12})
-            )
+            Contexto:
+            {context_text}
             
-            with st.spinner("Consultando el cerebro persistente..."):
-                response = qa_chain.invoke(user_query)
-                st.info(response["result"])
+            Pregunta:
+            {user_query}
+            
+            Respuesta:"""
+
+            # Lógica de Streaming en la UI
+            with st.chat_message("assistant"):
+                placeholder = st.empty()
+                full_response = ""
+                
+                # Ejecutamos el flujo palabra por palabra
+                for chunk in llm.stream(prompt):
+                    full_response += chunk.content
+                    placeholder.markdown(full_response + "▌")
+                
+                placeholder.markdown(full_response)
+
         except Exception as e:
             st.error(f"Error en consulta: {e}")
 else:
