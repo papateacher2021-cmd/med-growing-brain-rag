@@ -38,35 +38,68 @@ st.title("🧠 Pancho's MED RAG (Advanced Edition)")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# --- 5. FUNCIONES DE APOYO ---
-def get_indexed_files(vector_db):
-    try:
-        data = vector_db.get()
-        return sorted(list(set([m['source'].split('/')[-1] for m in data['metadatas']])))
-    except:
-        return []
-
+# --- 5. FUNCIONES DE APOYO (MEJORADAS)---
 def plot_3d_space(vector_db):
     try:
+        # Aseguramos que pedimos los embeddings explícitamente
         data = vector_db.get(include=['embeddings', 'metadatas', 'documents'])
-        if not data['embeddings'] or len(data['embeddings']) < 3:
+        
+        # Chroma a veces devuelve None o listas vacías
+        if data['embeddings'] is None or len(data['embeddings']) < 3:
             return None
         
         pca = PCA(n_components=3)
         vis_dims = pca.fit_transform(data['embeddings'])
         df = pd.DataFrame(vis_dims, columns=['x', 'y', 'z'])
-        df['source'] = [m['source'].split('/')[-1] for m in data['metadatas']]
+        
+        # Limpieza de nombres de archivo para la leyenda
+        df['source'] = [m.get('source', 'unknown').split('/')[-1] for m in data['metadatas']]
         df['preview'] = [d[:100] + "..." for d in data['documents']]
         
         fig = px.scatter_3d(
             df, x='x', y='y', z='z', color='source',
-            hover_data=['preview'], height=400,
-            title="3D Vector Space Projection"
+            hover_data=['preview'], height=500,
+            template="plotly_dark" # Se ve más "galáctico"
         )
-        fig.update_layout(margin=dict(l=0, r=0, b=0, t=30), showlegend=False)
+        fig.update_layout(
+            margin=dict(l=0, r=0, b=0, t=0),
+            scene=dict(xaxis_visible=False, yaxis_visible=False, zaxis_visible=False),
+            showlegend=True
+        )
         return fig
-    except:
+    except Exception as e:
+        st.error(f"Error en visualización: {e}")
         return None
+
+
+#def get_indexed_files(vector_db):
+    #try:
+        #data = vector_db.get()
+        #return sorted(list(set([m['source'].split('/')[-1] for m in data['metadatas']])))
+    #except:
+        #return []
+
+#def plot_3d_space(vector_db):
+    #try:
+        #data = vector_db.get(include=['embeddings', 'metadatas', 'documents'])
+        #if not data['embeddings'] or len(data['embeddings']) < 3:
+            #return None
+        
+        #pca = PCA(n_components=3)
+        #vis_dims = pca.fit_transform(data['embeddings'])
+        #df = pd.DataFrame(vis_dims, columns=['x', 'y', 'z'])
+        #df['source'] = [m['source'].split('/')[-1] for m in data['metadatas']]
+        #df['preview'] = [d[:100] + "..." for d in data['documents']]
+        
+        #fig = px.scatter_3d(
+            #df, x='x', y='y', z='z', color='source',
+            #hover_data=['preview'], height=400,
+            #title="3D Vector Space Projection"
+        #)
+        #fig.update_layout(margin=dict(l=0, r=0, b=0, t=30), showlegend=False)
+        #return fig
+    #except:
+        #return None
 
 # --- 6. SIDEBAR (GESTIÓN Y LISTADO) ---
 with st.sidebar:
@@ -102,15 +135,32 @@ with st.sidebar:
             st.info("Library is empty.")
 
 # --- 7. INTERFAZ PRINCIPAL (CHAT Y VISUALIZACIÓN) ---
-col_chat, col_viz = st.columns([2, 1])
+# col_chat, col_viz = st.columns([2, 1])
+col_chat, col_viz = st.columns([1.5, 1]) # Ajustamos el ancho para que la galaxia tenga espacio
+
+# Cargamos la base de datos una sola vez aquí para todos
+if os.path.exists(DB_DIR):
+    main_db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
+else:
+    main_db = None
 
 with col_chat:
-    # Mostrar historial de mensajes
     for i, msg in enumerate(st.session_state.messages):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+            # BOTÓN DE COPIADO CORREGIDO: Usamos el widget nativo de código para copiar fácil
             if msg["role"] == "assistant":
-                st.button("📋 Copy text", key=f"copy_{i}", on_click=lambda t=msg["content"]: st.write(f'<script>navigator.clipboard.writeText("{t}")</script>', unsafe_allow_html=True))
+                st.code(msg["content"], language=None) # Esto crea un cuadro con botón de "Copiar" arriba a la derecha
+
+    # ... (resto del código de entrada de usuario igual, usando main_db) ...
+
+#with col_chat:
+    # Mostrar historial de mensajes
+    #for i, msg in enumerate(st.session_state.messages):
+        #with st.chat_message(msg["role"]):
+            #st.markdown(msg["content"])
+            #if msg["role"] == "assistant":
+                #st.button("📋 Copy text", key=f"copy_{i}", on_click=lambda t=msg["content"]: st.write(f'<script>navigator.clipboard.writeText("{t}")</script>', unsafe_allow_html=True))
 
     # Entrada de usuario
     if user_query := st.chat_input("🛟 Please, place your consultation on MED here in English:...🐧"):
@@ -147,11 +197,21 @@ with col_chat:
         else:
             st.warning("Please upload a PDF first.")
 
+#with col_viz:
+    #st.subheader("🌐 Vector Space 3D")
+    #if os.path.exists(DB_DIR):
+        #fig = plot_3d_space(temp_db)
+        #if fig:
+            #st.plotly_chart(fig, use_container_width=True)
+        #else:
+            #st.info("Upload more data to see the 3D projection.")
+
 with col_viz:
-    st.subheader("🌐 Vector Space 3D")
-    if os.path.exists(DB_DIR):
-        fig = plot_3d_space(temp_db)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Upload more data to see the 3D projection.")
+    st.subheader("🌐 384 Dimensions as seen in Vector Space 3D")
+    if main_db:
+        with st.spinner("Projecting knowledge galaxy...This is my brain inside..."):
+            fig = plot_3d_space(main_db)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Not enough vectors to project yet (need at least 3 chunks).")
