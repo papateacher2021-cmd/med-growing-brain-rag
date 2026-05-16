@@ -39,6 +39,20 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # --- 5. FUNCIONES DE APOYO (MEJORADAS)---
+def get_indexed_files(vector_db):
+    """Extrae la lista única de archivos PDF almacenados en la base de datos."""
+    try:
+        # Obtenemos los metadatos de todos los fragmentos
+        data = vector_db.get()
+        if data and 'metadatas' in data:
+            # Extraemos el campo 'source', tomamos solo el nombre del archivo y eliminamos duplicados
+            filenames = sorted(list(set([m['source'].split('/')[-1] for m in data['metadatas'] if 'source' in m])))
+            return filenames
+        return []
+    except Exception as e:
+        print(f"Error al listar archivos: {e}")
+        return []
+
 def plot_3d_space(vector_db):
     try:
         # Aseguramos que pedimos los embeddings explícitamente
