@@ -12,3 +12,6 @@ pypdf
 sentence-transformers
 torch
 torchvision
+scikit-learn
+plotly
+pandas

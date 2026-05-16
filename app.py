@@ -7,6 +7,9 @@ except ImportError:
 
 import streamlit as st
 import os
+import pandas as pd
+import plotly.express as px
+from sklearn.decomposition import PCA
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -20,22 +23,56 @@ PDF_VAULT = "/data/med_pdf_storage"
 for folder in [DB_DIR, PDF_VAULT]:
     os.makedirs(folder, exist_ok=True)
 
-# --- 2. INICIALIZAR EMBEDDINGS (LOCALES) ---
+# --- 2. INICIALIZAR EMBEDDINGS ---
 @st.cache_resource
 def get_embeddings():
     return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 embeddings = get_embeddings()
 
-# --- 3. UI ---
+# --- 3. UI CONFIG ---
 st.set_page_config(page_title="F. Broissin Marine Equipment Directive RAG", page_icon="🧠", layout="wide")
-st.title("🧠 Pancho's MED RAG (Versión Streaming)")
+st.title("🧠 Pancho's MED RAG (Advanced Edition)")
 
-# --- 4. GESTIÓN DE PDFS (SIDEBAR) ---
+# --- 4. GESTIÓN DE ESTADO (HISTORIAL) ---
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# --- 5. FUNCIONES DE APOYO ---
+def get_indexed_files(vector_db):
+    try:
+        data = vector_db.get()
+        return sorted(list(set([m['source'].split('/')[-1] for m in data['metadatas']])))
+    except:
+        return []
+
+def plot_3d_space(vector_db):
+    try:
+        data = vector_db.get(include=['embeddings', 'metadatas', 'documents'])
+        if not data['embeddings'] or len(data['embeddings']) < 3:
+            return None
+        
+        pca = PCA(n_components=3)
+        vis_dims = pca.fit_transform(data['embeddings'])
+        df = pd.DataFrame(vis_dims, columns=['x', 'y', 'z'])
+        df['source'] = [m['source'].split('/')[-1] for m in data['metadatas']]
+        df['preview'] = [d[:100] + "..." for d in data['documents']]
+        
+        fig = px.scatter_3d(
+            df, x='x', y='y', z='z', color='source',
+            hover_data=['preview'], height=400,
+            title="3D Vector Space Projection"
+        )
+        fig.update_layout(margin=dict(l=0, r=0, b=0, t=30), showlegend=False)
+        return fig
+    except:
+        return None
+
+# --- 6. SIDEBAR (GESTIÓN Y LISTADO) ---
 with st.sidebar:
-# --- NUEVA LÍNEA PARA LA IMAGEN ---
     st.image("wheelmark_info.png", use_container_width=True) 
-    st.header("📥 Knowledge Ingestion")
+    
+    st.header("📂 Knowledge Management")
     uploaded_file = st.file_uploader("🐬 Loading MED-related document (.pdf) 🚢 ", type="pdf")
     
     if uploaded_file:
@@ -44,89 +81,75 @@ with st.sidebar:
             f.write(uploaded_file.getbuffer())
         
         if st.button("🔄 Process and Learn"):
-            with st.spinner("Integrating Knowledge in my CyberBrain...🧠 "):
-                try:
-                    loader = PyPDFLoader(file_path)
-                    data = loader.load()
-                    
-                    text_splitter = RecursiveCharacterTextSplitter(
-                        chunk_size=2000, 
-                        chunk_overlap=300,
-                        separators=["\nArticle ", "\nARTICLE ", "\n\n", "\n", " ", ""]
-                    )
-                    chunks = text_splitter.split_documents(data)
-                    
-                    vector_db = Chroma.from_documents(
-                        documents=chunks, 
-                        embedding=embeddings, 
-                        persist_directory=DB_DIR
-                    )
-                    st.success("✅ ¡Conocimiento integrado! ⚓ ")
-                    st.balloons()
-                except Exception as e:
-                    st.error(f"Error: {e}")
+            with st.spinner("Integrating Knowledge..."):
+                loader = PyPDFLoader(file_path)
+                data = loader.load()
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=300)
+                chunks = text_splitter.split_documents(data)
+                Chroma.from_documents(documents=chunks, embedding=embeddings, persist_directory=DB_DIR)
+                st.success("Knowledge Integrated!")
+                st.rerun()
 
-# Solo para probar, pongo esto antes del bloque del LLM
-if os.getenv("GOOGLE_API_KEY"):
-    st.sidebar.success("🔑 API Key detectada")
-else:
-    st.sidebar.error("❌ API Key no encontrada en Environment Variables")
+    st.divider()
+    st.header("📚 Library Content")
+    if os.path.exists(DB_DIR):
+        temp_db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
+        files = get_indexed_files(temp_db)
+        if files:
+            for f in files:
+                st.caption(f"✅ {f}")
+        else:
+            st.info("Library is empty.")
 
-# --- 5. CONSULTA CON STREAMING ---
-if os.path.exists(os.path.join(DB_DIR, "chroma.sqlite3")):
-    user_query = st.chat_input("🛟  Please, place your consultation on MED here:...🐧")
-    
-    if user_query:
-        # Mostramos la pregunta del usuario
+# --- 7. INTERFAZ PRINCIPAL (CHAT Y VISUALIZACIÓN) ---
+col_chat, col_viz = st.columns([2, 1])
+
+with col_chat:
+    # Mostrar historial de mensajes
+    for i, msg in enumerate(st.session_state.messages):
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            if msg["role"] == "assistant":
+                st.button("📋 Copy text", key=f"copy_{i}", on_click=lambda t=msg["content"]: st.write(f'<script>navigator.clipboard.writeText("{t}")</script>', unsafe_allow_html=True))
+
+    # Entrada de usuario
+    if user_query := st.chat_input("🛟 Please, place your consultation on MED here in English:...🐧"):
+        st.session_state.messages.append({"role": "user", "content": user_query})
         with st.chat_message("user"):
             st.markdown(user_query)
 
-        try:
-            # Conexión a la base de datos
+        if os.path.exists(DB_DIR):
             vector_db = Chroma(persist_directory=DB_DIR, embedding_function=embeddings)
-            
-            # Configuración de búsqueda (k=6 para más velocidad)
             retriever = vector_db.as_retriever(search_kwargs={"k": 12})
             docs = retriever.get_relevant_documents(user_query)
-            
-            # Construir el contexto a partir de los documentos encontrados
             context_text = "\n\n".join([doc.page_content for doc in docs])
 
-            # Configuración de Gemini con Streaming y versión estable v1
             llm = ChatGoogleGenerativeAI(
-                model="gemini-2.5-flash",
-		google_api_key=os.getenv("GOOGLE_API_KEY"), 
+                model="gemini-1.5-flash", # Actualizado a versión estable recomendada
+                google_api_key=os.getenv("GOOGLE_API_KEY"),
                 temperature=0.1,
-                streaming=True,
-                version="v1",
-		convert_system_message_to_human=True 
+                streaming=True
             )
 
-            # Prompt para guiar a la IA
-            prompt = f"""Responde detalladamente basándote en el contexto proporcionado. 
-            Si la respuesta no está en el contexto, di que no está disponible.
-            
-            Contexto:
-            {context_text}
-            
-            Pregunta:
-            {user_query}
-            
-            Respuesta:"""
+            system_instruction = "You are a professional maritime expert. ALWAYS respond in English. "
+            prompt = f"{system_instruction}\n\nContext:\n{context_text}\n\nQuestion:\n{user_query}\n\nDetailed Answer in English:"
 
-            # Lógica de Streaming en la UI
             with st.chat_message("assistant"):
                 placeholder = st.empty()
                 full_response = ""
-                
-                # Ejecutamos el flujo palabra por palabra
                 for chunk in llm.stream(prompt):
                     full_response += chunk.content
                     placeholder.markdown(full_response + "▌")
-                
                 placeholder.markdown(full_response)
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+        else:
+            st.warning("Please upload a PDF first.")
 
-        except Exception as e:
-            st.error(f"Error en consulta: {e}")
-else:
-    st.warning("My CyberBrain is empty. Please, upload a .PDF to start.")
+with col_viz:
+    st.subheader("🌐 Vector Space 3D")
+    if os.path.exists(DB_DIR):
+        fig = plot_3d_space(temp_db)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Upload more data to see the 3D projection.")

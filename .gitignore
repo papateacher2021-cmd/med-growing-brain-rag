@@ -222,3 +222,8 @@ med_pdf_storage/
 chroma_db_med/
 *.pdf
 .env
+
+# Ignorar versiones antiguas de seguridad
+ok-version0-0_app.py
+*.pyc
+__pycache__/
