@@ -125,10 +125,12 @@ with col_chat:
             context_text = "\n\n".join([doc.page_content for doc in docs])
 
             llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash", # Actualizado a versión estable recomendada
+                model="gemini-2.5-flash", # Actualizado a versión estable recomendada
                 google_api_key=os.getenv("GOOGLE_API_KEY"),
                 temperature=0.1,
-                streaming=True
+                streaming=True,
+                version="v1",
+                convert_system_message_to_human=True
             )
 
             system_instruction = "You are a professional maritime expert. ALWAYS respond in English. "
